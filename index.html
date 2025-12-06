@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kayonza Premium Bus Reservation</title>
+  <meta name="description" content="Kayonza Premium Bus Reservation - demo app with seat selection and localStorage backend" />
+
+  <style>
+    :root{
+      --bg: linear-gradient(180deg,#0f172a 0%, #071020 100%);
+      --glass: rgba(255,255,255,0.06);
+      --glass-2: rgba(255,255,255,0.03);
+      --accent: rgba(99,102,241,0.95);
+      --muted: rgba(255,255,255,0.7);
+      --radius: 14px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      min-height:100%;
+      background:var(--bg);
+      color:#e6eef8;
+      -webkit-font-smoothing:antialiased;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:32px;
+    }
+
+    .app{
+      width:1100px;
+      max-width:96vw;
+      display:grid;
+      grid-template-columns: 1fr 420px;
+      gap:24px;
+      align-items:start;
+    }
+
+    /* Header / Hero */
+    .hero{
+      grid-column: 1 / -1;
+      display:flex;
+      align-items:center;
+      gap:18px;
+      margin-bottom:6px;
+    }
+    .logo{
+      width:64px;height:64px;border-radius:12px;background:linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      display:flex;align-items:center;justify-content:center;backdrop-filter: blur(6px);
+      box-shadow: 0 6px 18px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+      border:1px solid rgba(255,255,255,0.04);
+      font-weight:700;font-size:20px;color:var(--accent)
+    }
+    .hero h1{margin:0;font-size:20px;}
+    .hero p{margin:0;color:var(--muted);font-size:13px}
+
+    /* Panels */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:var(--radius);
+      padding:18px;
+      border:1px solid rgba(255,255,255,0.04);
+      box-shadow: 0 8px 20px rgba(2,6,23,0.6);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Seat map */
+    .seats-wrap{display:flex;flex-direction:column;gap:14px}
+    .legend{display:flex;gap:10px;align-items:center}
+    .legend .pill{padding:6px 8px;border-radius:999px;background:var(--glass-2);font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,0.03)}
+    .seat-grid{display:grid;grid-template-columns: repeat(6, 56px);gap:10px;justify-content:start}
+    .seat{
+      width:56px;height:56px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+      font-weight:700;border:1px solid rgba(255,255,255,0.04);background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      user-select:none;font-size:13px;color:#dbeafe;
+    }
+    .seat:hover{transform:translateY(-4px)}
+    .seat.selected{background:linear-gradient(180deg, rgba(99,102,241,0.12), rgba(99,102,241,0.06));box-shadow:0 8px 20px rgba(99,102,241,0.08);border-color: rgba(99,102,241,0.18)}
+    .seat.taken{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));opacity:0.55;cursor:not-allowed}
+
+    /* Form column */
+    form{display:flex;flex-direction:column;gap:12px}
+    label{font-size:13px;color:var(--muted)}
+    input[type=text], select, input[type=date]{
+      padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-size:14px
+    }
+    button.primary{background:linear-gradient(90deg,var(--accent), #6366f1);padding:10px 12px;border-radius:10px;border:none;color:#fff;font-weight:700;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:10px;color:var(--muted);cursor:pointer}
+
+    .bookings{display:flex;flex-direction:column;gap:8px}
+    .booking-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.03)}
+    .booking-item small{color:var(--muted)}
+
+    .muted{color:var(--muted);font-size:13px}
+
+    footer{grid-column:1/-1;margin-top:10px;color:var(--muted);font-size:12px;text-align:center}
+
+    @media (max-width:980px){
+      .app{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="hero">
+      <div class="logo">KP</div>
+      <div>
+        <h1>Kayonza Premium — Bus Reservation</h1>
+        <p class="muted">Fast. Modern. Secure. Reserve your seat in Kayonza region.</p>
+      </div>
+    </div>
+
+    <!-- Left: Seat map + bookings -->
+    <section class="card" id="left">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">Select a seat</h3>
+        <div class="legend">
+          <div class="pill"><span style="width:10px;height:10px;background:linear-gradient(90deg,var(--accent),#6366f1);display:inline-block;border-radius:3px"></span> Selected</div>
+          <div class="pill"><span style="width:10px;height:10px;background:rgba(255,255,255,0.06);display:inline-block;border-radius:3px"></span> Available</div>
+          <div class="pill"><span style="width:10px;height:10px;background:rgba(255,255,255,0.02);display:inline-block;border-radius:3px"></span> Taken</div>
+        </div>
+      </div>
+
+      <div class="seats-wrap">
+        <div class="seat-grid" id="seatGrid" aria-label="Bus seats"></div>
+        <div class="muted">Tip: click a seat to select it. Already booked seats are disabled.</div>
+      </div>
+
+      <hr style="margin:18px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+
+      <h3 style="margin-top:0">Your Bookings</h3>
+      <div class="bookings" id="bookingsList">
+        <!-- populated by JS -->
+      </div>
+    </section>
+
+    <!-- Right: Form -->
+    <aside class="card">
+      <h3 style="margin-top:0">Book a Trip</h3>
+      <form id="bookingForm">
+        <div>
+          <label for="fullName">Full name</label>
+          <input id="fullName" type="text" placeholder="e.g. Jean Paul" required />
+        </div>
+
+        <div>
+          <label for="from">From</label>
+          <select id="from" required>
+            <option value="">Choose departure</option>
+            <option value="Rukara">Rukara</option>
+            <option value="Nyamirama">Nyamirama</option>
+            <option value="Mukarange">Mukarange</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="to">To</label>
+          <select id="to" required>
+            <option value="">Choose destination</option>
+            <option value="Kagitumba">Kagitumba</option>
+            <option value="Kabarondo">Kabarondo</option>
+            <option value="Kigabiro">Kigabiro</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="date">Travel date</label>
+          <input id="date" type="date" required />
+        </div>
+
+        <div>
+          <label for="seatDisplay">Selected seat</label>
+          <input id="seatDisplay" type="text" placeholder="Pick a seat from the left" readonly />
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button type="submit" class="primary">Confirm Booking</button>
+          <button type="button" id="clearBtn" class="ghost">Clear All</button>
+        </div>
+
+        <p id="formMessage" class="muted" style="margin-top:8px"></p>
+      </form>
+
+      <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+      
+    </aside>
+
+    <footer>© Kayonza Premium — Demo app • Save <code>index.html</code> & push to your Git repository</footer>
+  </div>
+
+  <script>
+    /***************************
+     * Kayonza Premium - script
+     ***************************/
+
+    const SEAT_COUNT = 30;
+    const seatGrid = document.getElementById('seatGrid');
+    const seatDisplay = document.getElementById('seatDisplay');
+    const bookingsList = document.getElementById('bookingsList');
+    const bookingForm = document.getElementById('bookingForm');
+    const formMessage = document.getElementById('formMessage');
+    const clearBtn = document.getElementById('clearBtn');
+
+    let selectedSeat = null;
+
+    // LocalStorage key
+    const STORAGE_KEY = 'kayonza_bookings_v1';
+
+    function readBookings(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      }catch(e){
+        console.error('Failed to read bookings', e);
+        return [];
+      }
+    }
+
+    function writeBookings(arr){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+    }
+
+    // Render seat grid and mark taken seats
+    function renderSeats(){
+      const bookings = readBookings();
+      const takenSeats = new Set(bookings.map(b => b.seat));
+
+      seatGrid.innerHTML = '';
+
+      for(let i=1;i<=SEAT_COUNT;i++){
+        const s = document.createElement('div');
+        s.className = 'seat';
+        s.setAttribute('data-seat', String(i));
+        s.tabIndex = 0;
+        s.innerText = i;
+
+        if(takenSeats.has(String(i))){
+          s.classList.add('taken');
+        }
+
+        // click handler
+        s.addEventListener('click', (ev)=>{
+          if(s.classList.contains('taken')){
+            formMessage.innerText = 'Seat already booked. Choose a different seat.';
+            setTimeout(()=>formMessage.innerText = '', 2200);
+            return;
+          }
+          selectSeat(i);
+        });
+
+        s.addEventListener('keydown', (ev)=>{
+          if(ev.key === 'Enter' || ev.key === ' '){
+            s.click();
+            ev.preventDefault();
+          }
+        });
+
+        seatGrid.appendChild(s);
+      }
+
+      // re-apply selection highlight if selected seat exists and is still available
+      if(selectedSeat){
+        const el = seatGrid.querySelector(`[data-seat='${selectedSeat}']`);
+        if(el && !el.classList.contains('taken')) el.classList.add('selected');
+        else {
+          selectedSeat = null;
+          seatDisplay.value = '';
+        }
+      }
+    }
+
+    function selectSeat(number){
+      // remove any previous selected
+      const prev = seatGrid.querySelector('.seat.selected');
+      if(prev) prev.classList.remove('selected');
+
+      const el = seatGrid.querySelector(`[data-seat='${number}']`);
+      if(!el) return;
+
+      el.classList.add('selected');
+      selectedSeat = String(number);
+      seatDisplay.value = selectedSeat;
+      formMessage.innerText = '';
+    }
+
+    // Render bookings on right side
+    function renderBookings(){
+      const bookings = readBookings();
+      bookingsList.innerHTML = '';
+
+      if(bookings.length === 0){
+        const p = document.createElement('div');
+        p.className = 'muted';
+        p.innerText = 'No bookings yet...';
+        bookingsList.appendChild(p);
+        return;
+      }
+
+      bookings.forEach((b, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'booking-item';
+
+        const left = document.createElement('div');
+        left.innerHTML = `<div style=\"font-weight:700\">${escapeHtml(b.name)} <small style='margin-left:8px' class='muted'>#${idx+1}</small></div>
+                          <small class='muted'>${escapeHtml(b.from)} → ${escapeHtml(b.to)} • ${escapeHtml(b.date)}</small>`;
+
+        const right = document.createElement('div');
+        right.style.textAlign='right';
+        right.innerHTML = `<div style='font-weight:800'>Seat ${escapeHtml(b.seat)}</div><small class='muted'>${escapeHtml(b.time || '')}</small>`;
+
+        // cancel button
+        const cancel = document.createElement('button');
+        cancel.className = 'ghost';
+        cancel.style.marginLeft='12px';
+        cancel.innerText = 'Cancel';
+        cancel.addEventListener('click', ()=>{
+          if(!confirm('Cancel this booking?')) return;
+          cancelBooking(idx);
+        });
+
+        right.appendChild(cancel);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        bookingsList.appendChild(row);
+      });
+    }
+
+    function cancelBooking(index){
+      const bookings = readBookings();
+      if(index < 0 || index >= bookings.length) return;
+      bookings.splice(index,1);
+      writeBookings(bookings);
+      selectedSeat = null;
+      seatDisplay.value = '';
+      renderSeats();
+      renderBookings();
+    }
+
+    // escape html helper
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[m]; });
+    }
+
+    // Validate date (not in past)
+    function isValidDateInput(dateStr){
+      if(!dateStr) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const d = new Date(dateStr);
+      d.setHours(0,0,0,0);
+      return d >= today;
+    }
+
+    bookingForm.addEventListener('submit', (e)=>{
+      e.preventDefault();
+
+      const name = document.getElementById('fullName').value.trim();
+      const from = document.getElementById('from').value;
+      const to = document.getElementById('to').value;
+      const date = document.getElementById('date').value;
+
+      // basic validation
+      if(!name || !from || !to || !date){
+        formMessage.innerText = 'Please fill all fields.';
+        return;
+      }
+      if(from === to){
+        formMessage.innerText = 'Origin and destination cannot be the same.';
+        return;
+      }
+      if(!selectedSeat){
+        formMessage.innerText = 'Please select a seat from the left.';
+        return;
+      }
+      if(!isValidDateInput(date)){
+        formMessage.innerText = 'Please choose today or a future travel date.';
+        return;
+      }
+
+      // check seat still available
+      const bookings = readBookings();
+      const taken = bookings.some(b => b.seat === selectedSeat);
+      if(taken){
+        formMessage.innerText = 'Selected seat was just taken. Please choose another seat.';
+        renderSeats();
+        return;
+      }
+
+      const now = new Date();
+      const timeStr = now.toLocaleString();
+
+      const newBooking = { name, from, to, date, seat: selectedSeat, time: timeStr };
+      bookings.push(newBooking);
+      writeBookings(bookings);
+
+      // feedback
+      formMessage.innerText = 'Booking confirmed!';
+      bookingForm.reset();
+      selectedSeat = null;
+      seatDisplay.value = '';
+
+      // re-render
+      renderSeats();
+      renderBookings();
+
+      setTimeout(()=>{ formMessage.innerText = ''; }, 2500);
+    });
+
+    clearBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear ALL bookings from this browser? This action cannot be undone.')) return;
+      localStorage.removeItem(STORAGE_KEY);
+      selectedSeat = null; seatDisplay.value = '';
+      renderSeats();
+      renderBookings();
+    });
+
+    // auto-set min date for travel date input
+    (function setMinDate(){
+      const dateInput = document.getElementById('date');
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth()+1).padStart(2,'0');
+      const d = String(today.getDate()).padStart(2,'0');
+      dateInput.min = `${y}-${m}-${d}`;
+    })();
+
+    // init
+    renderSeats();
+    renderBookings();
+
+  </script>
+</body>
+</html>
